@@ -38,7 +38,6 @@ import {
 import { NbSecurityModule } from '@nebular/security';
 
 import {
-  FooterComponent,
   HeaderComponent,
   SearchInputComponent,
   ThemeSettingsComponent,
@@ -106,7 +105,6 @@ const COMPONENTS = [
   ThemeSwitcherComponent,
   ThemeSwitcherListComponent,
   HeaderComponent,
-  FooterComponent,
   SearchInputComponent,
   ThemeSettingsComponent,
   OneColumnLayoutComponent,

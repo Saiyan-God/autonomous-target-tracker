@@ -31,9 +31,6 @@ import { takeWhile } from 'rxjs/operators';
       <nb-layout-column class="small">
       </nb-layout-column>
 
-      <nb-layout-footer fixed>
-        <ngx-footer></ngx-footer>
-      </nb-layout-footer>
     </nb-layout>
   `,
 })
