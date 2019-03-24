@@ -70,6 +70,7 @@
     .header-container .logo {
       @include nb-ltr(border, none);
       @include nb-rtl(border, none);
+      
     }
 
     .header-container /deep/ ngx-theme-switcher .dropdown-toggle {

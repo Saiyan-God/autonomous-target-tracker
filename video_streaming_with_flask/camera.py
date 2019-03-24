@@ -6,7 +6,7 @@ class VideoCamera(object):
         # from a webcam, comment the line below out and use a video file
         # instead.
         self.cascPath = "./haarcascade_frontalface_default.xml"
-        self.video_capture = cv2.VideoCapture('udpsrc port=5200 !  application/x-rtp, encoding-name=JPEG,payload=26 !  rtpjpegdepay !  jpegdec ! videoconvert ! appsink')
+        self.video_capture = cv2.VideoCapture(0)
         self.faceCascade = cv2.CascadeClassifier(self.cascPath)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
         self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)

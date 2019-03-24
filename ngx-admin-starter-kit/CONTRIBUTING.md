@@ -161,7 +161,6 @@ format that includes a **type**, a **scope** and a **subject**:
 <BLANK LINE>
 <body>
 <BLANK LINE>
-<footer>
 ```
 
 The **header** is mandatory and the **scope** of the header is optional.
