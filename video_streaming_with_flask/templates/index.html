@@ -1,5 +1,11 @@
 <html>
   <body>
+    <div id="recorder">
+        <button id="record">Record</button>
+        <button id="stop">Stop</button>
+        <a id="download"></a>
+        <script type="text/javascript" src="{{ url_for('static', filename='recorder.js') }}"></script>
+    </div>
     <img id="bg" src="{{ url_for('video_feed') }}">
   </body>
 </html>
