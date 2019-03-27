@@ -89,6 +89,7 @@ class VideoCamera(object):
             size_difference = w - self.old_size
 
             # If the new x-coordinate and old x-coordinate difference exceeds the threshold, rotate the robot accordingly
+            '''
             if(abs(x_difference) > 50):
                 if(x_difference > 0):
                     print('a')
@@ -97,11 +98,12 @@ class VideoCamera(object):
                     print('d')
                     #r = requests.post(pi_url, data=json.dumps({'direction': 'd'}))
                     #print("Coordinates - x: {}, y {}".format(x,y))
-
+            '''
 
             # If the new distance and old distance difference exceeds the threshold, move the robot accordingly
             if(abs(size_difference) > 20):
                 self.old_size = w
+                '''
                 if(size_difference < 0):
                     print('w')
                     #r = requests.post(pi_url, data=json.dumps({'direction': 'w'}))
@@ -109,6 +111,7 @@ class VideoCamera(object):
                     print('s')
                     #r = requests.post(pi_url, data=json.dumps({'direction': 's'}))
                     #print("Width, Height: {}, {}".format(w,h))
+                '''
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()
 

@@ -17,6 +17,8 @@ from flask import Flask, render_template, Response, jsonify, request
 from flask_cors import CORS, cross_origin
 from camera import VideoCamera
 import time
+from flask.ext.socketio import SocketIO, emit
+
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -24,6 +26,7 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 
 video_camera = None
 global_frame = None
+socketio = SocketIO(app)
 
 @app.route('/')
 @cross_origin()
@@ -75,6 +78,10 @@ def video_feed():
     return Response(video_stream(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@socketio.on('move')
+def test_message(message):
+    print "direction: " + message
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, threaded=True)
+    socketio.run(app)
