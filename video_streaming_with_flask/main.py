@@ -13,10 +13,12 @@
 # 1. Install Python dependencies: cv2, flask. (wish that pip install works like a charm)
 # 2. Run "python main.py".
 # 3. Navigate the browser to the local webpage.
-from flask import Flask, render_template, Response, jsonify, request
+from flask import Flask, render_template, Response, jsonify, request, send_file, make_response
 from flask_cors import CORS, cross_origin
 from camera import VideoCamera
 import time
+import os, os.path
+import re
 from flask_socketio import SocketIO, emit
 
 
@@ -26,6 +28,7 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 
 video_camera = None
 global_frame = None
+
 socketio = SocketIO(app)
 
 def instansiate_camera():
@@ -81,6 +84,55 @@ def video_stream():
 def video_feed():
     return Response(video_stream(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/recordings')
+def recordings():
+    DIR = './recordings'
+    num_videos = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
+    return jsonify({"num_videos": num_videos})
+
+
+@app.route('/recording', methods=['GET'])
+@cross_origin()
+def recording():
+    try:
+        recording_no = request.args.get('recording_no')
+    except:
+        recording_no = 1
+    if recording_no is None:
+        recording_no = 1
+    print(recording_no)
+    vid_path = './recordings/video{}.mp4'.format(recording_no)
+    print(vid_path)
+    file_size = os.stat(vid_path).st_size
+    start = 0
+    length = 10240  # can be any default length you want
+
+    range_header = request.headers.get('Range', None)
+    if range_header:
+        m = re.search('([0-9]+)-([0-9]*)', range_header)  # example: 0-1000 or 1250-
+        g = m.groups()
+        byte1, byte2 = 0, None
+        if g[0]:
+            byte1 = int(g[0])
+        if g[1]:
+            byte2 = int(g[1])
+        if byte1 < file_size:
+            start = byte1
+        if byte2:
+            length = byte2 + 1 - byte1
+        else:
+            length = file_size - start
+
+    with open(vid_path, 'rb') as f:
+        f.seek(start)
+        chunk = f.read(length)
+
+    rv = Response(chunk, 206, mimetype='video/mp4', content_type='video/mp4', direct_passthrough=True)
+    rv.headers.add('Content-Range', 'bytes {0}-{1}/{2}'.format(start, start + length - 1, file_size))
+    return rv
+    #return Response(g, direct_passthrough=True)
+
 
 @socketio.on('move')
 def test_message(message):

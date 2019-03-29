@@ -41,15 +41,15 @@ class RecordingThread(threading.Thread):
         self.isRunning = True
 
         self.cap = camera
-        self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        self.out = None  # cv2.VideoWriter('./recordings/video.avi', self.fourcc, 20.0, (640,480));
+        self.fourcc = cv2.VideoWriter_fourcc('H','2','6','4')  # or self.fourcc = cv2.VideoWriter_fourcc(*'H264')
+        self.out = None
 
     def run(self):
         global video_counter
         video_counter += 1
-        video_path = './recordings/video' + str(video_counter) + '.avi'
+        video_path = './recordings/video' + str(video_counter) + '.mp4'
         print(video_path)
-        self.out = cv2.VideoWriter(video_path, self.fourcc, 20.0, (640,480))
+        self.out = cv2.VideoWriter(video_path, 0x31637661, 20.0, (640,480))  # or replace 0x31637661 with self.fourcc
         while self.isRunning:
             ret, frame = self.cap.read()
             if ret:
@@ -69,8 +69,8 @@ class VideoCamera(object):
         # Using OpenCV to capture from device 0. If you have trouble capturing
         # from a webcam, comment the line below out and use a video file
         # instead.
-        #self.video_capture = cv2.VideoCapture(0)
-        self.video_capture = cv2.VideoCapture('udpsrc port=5200 !  application/x-rtp, encoding-name=JPEG,payload=26 !  rtpjpegdepay !  jpegdec ! videoconvert ! appsink')
+        self.video_capture = cv2.VideoCapture(0)
+        #self.video_capture = cv2.VideoCapture('udpsrc port=5200 !  application/x-rtp, encoding-name=JPEG,payload=26 !  rtpjpegdepay !  jpegdec ! videoconvert ! appsink')
         time.sleep(2.0)
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_FILE_PATH, MODEL_FILE_PATH)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
@@ -81,7 +81,7 @@ class VideoCamera(object):
         self.old_x = -1
         self.old_y = -1
         self.tracking_index = 0
-                                                                                                                                                                                                                                                                                                                                                            
+
         self.old_size = -1
         # If you decide to use video.mp4, you must have this file in the folder
         # as the main.py.
@@ -109,7 +109,7 @@ class VideoCamera(object):
         terminal_print('Turn right')
         r = requests.post(self.pi_url, data=json.dumps({'direction': 'a'}))
         # TO-DO: serial code to turn robot right
-    
+
     def stop(self):
         terminal_print('Stop')
         r = requests.post(self.pi_url, data=json.dumps({'direction': 'x'}))
@@ -130,12 +130,12 @@ class VideoCamera(object):
             tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
             tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
             cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
-        
+
         # grab the frame dimensions and convert it to a blob
         (h, w) = frame.shape[:2]
         blob = cv2.dnn.blobFromImage(frame, 1.0,
             (300, 300), (104.0, 177.0, 123.0))
-        
+
         # pass the blob through the network and obtain the detections and
         # predictions
         self.net.setInput(blob)
@@ -148,7 +148,7 @@ class VideoCamera(object):
             # extract the confidence (i.e., probability) associated with the
             # prediction
             confidence = detections[0, 0, i, 2]
-    
+
             # filter out weak detections by ensuring the `confidence` is
             # greater than the minimum confidence
             if confidence > CONFIDENCE_MIN:
@@ -173,10 +173,10 @@ class VideoCamera(object):
             # object
             box = detections[0, 0, faces_lst[i], 3:7] * np.array([w, h, w, h])
             (startX, startY, endX, endY) = box.astype("int")
-    
+
             x = (startX+endX)/2
             y = (startY+endY)/2
-            
+
             if(tracking and self.face_index == i and self.old_x < 0):
                 self.old_x = x
                 self.old_y = y
@@ -203,11 +203,11 @@ class VideoCamera(object):
                         self.turn_left()
                     if(x_diff < 0):
                         self.turn_right()
-                
+
                 # If the new distance and old distance difference exceeds the threshold, move the robot accordingly
                 if(abs(size_difference) > 20):
                     if(size_difference < 0):
-                        self.move_forward()	
+                        self.move_forward()
                     if(size_difference > 0):
                         self.move_backward()
             elif (not tracking and self.tracking_index == i):
@@ -219,7 +219,7 @@ class VideoCamera(object):
                 # Draw a rectangle around the faces
                 if(verbose_image):
                     cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-        
+
 
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()

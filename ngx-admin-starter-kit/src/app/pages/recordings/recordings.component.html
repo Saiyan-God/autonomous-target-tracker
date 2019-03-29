@@ -1,0 +1,20 @@
+<div class="flex-container">
+    <!-- <ul>
+        <li *ngFor="let d of lol; index as i">
+            <button type="button" (click)="viewRecording(i+1)" class="child btn btn-success btn-sm">Recording {{i+1}}</button>
+        </li>
+    </ul> -->
+    <select class="form-control" placeholder="Select Recording" (change)="onSelect($event.target.value)">
+        <option selected disabled>Select Recording</option>
+        <option *ngFor="let d of lol; index as i"
+            [value]="i+1">
+            Recording {{ i+1 }}
+        </option>
+    </select>
+</div>
+
+<div class="flex-container">
+    <video id="video-player" controls>
+        <source src="http://localhost:5000/recording" type="video/mp4">
+    </video>
+</div>
