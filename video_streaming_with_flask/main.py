@@ -17,7 +17,7 @@ from flask import Flask, render_template, Response, jsonify, request
 from flask_cors import CORS, cross_origin
 from camera import VideoCamera
 import time
-from flask.ext.socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit
 
 
 app = Flask(__name__)
@@ -27,6 +27,9 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 video_camera = None
 global_frame = None
 socketio = SocketIO(app)
+
+def instansiate_camera():
+    return VideoCamera()
 
 @app.route('/')
 @cross_origin()
@@ -39,7 +42,7 @@ def index():
 def record_status():
     global video_camera
     if video_camera == None:
-        video_camera = VideoCamera()
+        video_camera = instansiate_camera()
 
     json = request.get_json()
 
@@ -54,12 +57,13 @@ def record_status():
         return response
 
 
+
 def video_stream():
     global video_camera
     global global_frame
 
     if video_camera == None:
-        video_camera = VideoCamera()
+        video_camera = instansiate_camera()
 
     while True:
         frame = video_camera.get_frame()
@@ -80,7 +84,16 @@ def video_feed():
 
 @socketio.on('move')
 def test_message(message):
+    global video_camera
+
+    if video_camera == None:
+        video_camera = instansiate_camera()
     print "direction: " + message
+    if message == 'forward': video_camera.move_forward()
+    if message == 'backward': video_camera.move_backward()
+    if message == 'left': video_camera.turn_left()
+    if message == 'right': video_camera.turn_right()
+    if message ==  'stop': video_camera.stop()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, threaded=True)

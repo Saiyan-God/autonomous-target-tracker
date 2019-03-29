@@ -1,44 +1,36 @@
-import cv2, requests, json, time, os
+import cv2, json, time, os
 from imutils.video import VideoStream
 import numpy as np
 import imutils, requests, json, threading
 
 # constants
 CONFIDENCE_MIN = 0.5
-X_DIST_THRESHOLD = 50
+DIST_THRESHOLD = 50
 PROTOTXT_FILE_PATH =  os.path.abspath('deploy.prototxt.txt')
 MODEL_FILE_PATH = os.path.abspath('res10_300x300_ssd_iter_140000.caffemodel')
 
 # variables
 verbose_image = True
 verbose_terminal = True
+tracking = False
 ideal_height = 150
-pi_url = "http://192.168.43.253"
+
+def print_commands():
+	terminal_print('Commands: ')
+	terminal_print('h\tPrint Commands')
+	terminal_print('q\tQuit Program')
+	terminal_print('v\tToggle Video Indicators')
+	terminal_print('t\tToggle Tracking')
+	terminal_print('y\tCycle Target\t(Cannot be tracking)')
+	terminal_print('w\tMove Forward\t(Cannot be tracking)')
+	terminal_print('s\tMove Backwards\t(Cannot be tracking)')
+	terminal_print('a\tTurn Left\t(Cannot be tracking)')
+	terminal_print('d\tToggle Right\t(Cannot be tracking)')
 
 # print statement that only prints in verbose mode
 def terminal_print(text):
 	if(verbose_terminal):
 	    print(text)
-
-def move_forward():
-    terminal_print('Move forward')
-    r = requests.post(pi_url, data=json.dumps({'direction': 'w'}))
-	# TO-DO: serial code to move robot forward
-
-def move_backward():
-    terminal_print('Move backward')
-    r = requests.post(pi_url, data=json.dumps({'direction': 's'}))
-    # TO-DO: serial code to move robot backward
-
-def turn_right():
-    terminal_print('Turn right')
-    r = requests.post(pi_url, data=json.dumps({'direction': 'a'}))
-	# TO-DO: serial code to turn robot right
-
-def turn_left():
-    terminal_print('Turn left')
-    r = requests.post(pi_url, data=json.dumps({'direction': 'd'}))
-	# TO-DO: serial code to turn robot left
 
 
 video_counter = 0
@@ -72,20 +64,23 @@ class RecordingThread(threading.Thread):
 
 
 class VideoCamera(object):
+    import requests
     def __init__(self):
         # Using OpenCV to capture from device 0. If you have trouble capturing
         # from a webcam, comment the line below out and use a video file
         # instead.
+        #self.video_capture = cv2.VideoCapture(0)
         self.video_capture = cv2.VideoCapture('udpsrc port=5200 !  application/x-rtp, encoding-name=JPEG,payload=26 !  rtpjpegdepay !  jpegdec ! videoconvert ! appsink')
         time.sleep(2.0)
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_FILE_PATH, MODEL_FILE_PATH)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
         self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
-        self.pi_url = "http://192.168.0.155"
+        self.pi_url = "http://192.168.43.253"
         self.num_faces = 0
-        face_index = -1
+        self.face_index = -1
         self.old_x = -1
         self.old_y = -1
+        self.tracking_index = 0
                                                                                                                                                                                                                                                                                                                                                             
         self.old_size = -1
         # If you decide to use video.mp4, you must have this file in the folder
@@ -100,23 +95,53 @@ class VideoCamera(object):
     def __del__(self):
         self.video.release()
 
+    def move_forward(self):
+        terminal_print('Move forward')
+        r = requests.post(self.pi_url, data=json.dumps({'direction': 'w'}))
+	    # TO-DO: seriarecordingThreadrecordingThreadrecordingThreadrecordingThreadrecordingThreadrecordingThreadl code to move robot forward
+
+    def move_backward(self):
+        terminal_print('Move backward')
+        r = requests.post(self.pi_url, data=json.dumps({'direction': 's'}))
+        # TO-DO: serial code to move robot backward
+
+    def turn_right(self):
+        terminal_print('Turn right')
+        r = requests.post(self.pi_url, data=json.dumps({'direction': 'a'}))
+        # TO-DO: serial code to turn robot right
+    
+    def stop(self):
+        terminal_print('Stop')
+        r = requests.post(self.pi_url, data=json.dumps({'direction': 'x'}))
+        # TO-DO: serial code to turn robot right
+
+    def turn_left(self):
+        terminal_print('Turn left')
+        r = requests.post(self.pi_url, data=json.dumps({'direction': 'd'}))
+        # TO-DO: serial code to turn robot left
+
     def get_frame(self):
         ret, frame = self.video_capture.read()
-        #frame = imutils.resize(frame, width=400)
+        frame = cv2.resize(frame, (680, 480))
+       # frame = imutils.resize(frame, width=640, height=480)
 
         if(verbose_image):
             cv2.circle(frame, (self.frame_center_x,self.frame_center_y), 3, (255, 0, 0), 2)
-    
+            tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
+            tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
+            cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
+        
         # grab the frame dimensions and convert it to a blob
         (h, w) = frame.shape[:2]
-        blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0,
+        blob = cv2.dnn.blobFromImage(frame, 1.0,
             (300, 300), (104.0, 177.0, 123.0))
-    
+        
         # pass the blob through the network and obtain the detections and
         # predictions
         self.net.setInput(blob)
         detections = self.net.forward()
 
+        faces_lst = []
 
         # loop over the detections
         for i in range(0, detections.shape[2]):
@@ -126,22 +151,37 @@ class VideoCamera(object):
     
             # filter out weak detections by ensuring the `confidence` is
             # greater than the minimum confidence
-            if confidence < CONFIDENCE_MIN:
-                continue
-    
+            if confidence > CONFIDENCE_MIN:
+                faces_lst.append(i)
+
+        if(self.num_faces != len(faces_lst)):
+            self.tracking_index = 0
+            self.num_faces = len(faces_lst)
+            for i in range(0, self.num_faces):
+                box = detections[0, 0, faces_lst[i], 3:7] * np.array([w, h, w, h])
+                (startX, startY, endX, endY) = box.astype("int")
+                x = (startX+endX)/2
+                y = (startY+endY)/2
+                if(abs(x - self.old_x) < DIST_THRESHOLD and abs(y - self.old_y) < DIST_THRESHOLD):
+                    self.face_index = i
+                    break
+
+        for i in range(0, self.num_faces):
+            confidence = detections[0, 0, faces_lst[i], 2]
+
             # compute the (x, y)-coordinates of the bounding box for the
             # object
-            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            box = detections[0, 0, faces_lst[i], 3:7] * np.array([w, h, w, h])
             (startX, startY, endX, endY) = box.astype("int")
     
             x = (startX+endX)/2
             y = (startY+endY)/2
             
-            if(self.old_x < 1):
+            if(tracking and self.face_index == i and self.old_x < 0):
                 self.old_x = x
                 self.old_y = y
 
-            if(abs(x - self.old_x) < X_DIST_THRESHOLD):
+            if(tracking and abs(x - self.old_x) < DIST_THRESHOLD and abs(y - self.old_y) < DIST_THRESHOLD):
                 self.old_x = x
                 self.old_y = y
 
@@ -160,21 +200,26 @@ class VideoCamera(object):
                 # If the new x-coordinate and old x-coordinate difference exceeds the threshold, rotate the robot accordingly
                 if(abs(x_diff) > 130):
                     if(x_diff > 0):
-                        turn_left()
+                        self.turn_left()
                     if(x_diff < 0):
-                        turn_right()
+                        self.turn_right()
                 
                 # If the new distance and old distance difference exceeds the threshold, move the robot accordingly
                 if(abs(size_difference) > 20):
                     if(size_difference < 0):
-                        move_forward()	
+                        self.move_forward()	
                     if(size_difference > 0):
-                        move_backward()
+                        self.move_backward()
+            elif (not tracking and self.tracking_index == i):
+                # Draw a rectangle around the potential face to track
+                if(verbose_image):
+                    cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 0), 2)
 
             else:
                 # Draw a rectangle around the faces
-                cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-    
+                if(verbose_image):
+                    cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+        
 
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()
