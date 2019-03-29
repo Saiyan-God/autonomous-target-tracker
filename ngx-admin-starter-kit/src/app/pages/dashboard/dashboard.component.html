@@ -1,17 +1,20 @@
-
+<div class="flex-container">
+    <button id="record" type="button" class="child btn btn-success btn-sm">Record</button>
+    <button id="stop" type="button" class="child btn btn-danger btn-sm">Stop Recording</button>
+</div>
 <div class="flex-container">
   <img src="http://localhost:5000/video_feed" height="360" width="480" alt="Stream not loaded">
 </div>
 <div class="flex-container">
-    <button type="button" class="btn btn-success btn-sm">Forward</button>
+    <button type="button" (click)="move('forward')" class="btn btn-success btn-sm">Forward</button>
 </div>
 <div class="flex-container">
-    <button type="button" class="child btn btn-success btn-sm">Left</button>
-    <button type="button" class="child btn btn-success btn-sm">Right</button>
+    <button type="button" (click)="move('left')" class="child btn btn-success btn-sm">Left</button>
+    <button type="button" (click)="move('right')" class="child btn btn-success btn-sm">Right</button>
 </div>
 <div class="flex-container">
-    <button type="button" class="child btn btn-success btn-sm">Reverse</button>
+    <button type="button" (click)="move('reverse')" class="child btn btn-success btn-sm">Reverse</button>
 </div>
 <div class="flex-container">
-    <button type="button" class="child btn btn-danger btn-sm">Stop</button>
+    <button type="button" (click)="move('stop')" class="child btn btn-danger btn-sm">Stop</button>
 </div>

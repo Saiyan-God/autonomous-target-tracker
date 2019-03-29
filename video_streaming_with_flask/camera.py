@@ -1,7 +1,7 @@
 import cv2, requests, json, time, os
 from imutils.video import VideoStream
 import numpy as np
-import imutils, requests, json
+import imutils, requests, json, threading
 
 # constants
 CONFIDENCE_MIN = 0.5
@@ -40,8 +40,35 @@ def turn_left():
     r = requests.post(pi_url, data=json.dumps({'direction': 'd'}))
 	# TO-DO: serial code to turn robot left
 
-# load our serialized model from disk
-terminal_print("[INFO] loading model...")
+
+video_counter = 0
+class RecordingThread(threading.Thread):
+    def __init__(self, name, camera):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.isRunning = True
+
+        self.cap = camera
+        self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        self.out = None  # cv2.VideoWriter('./recordings/video.avi', self.fourcc, 20.0, (640,480));
+
+    def run(self):
+        global video_counter
+        video_counter += 1
+        video_path = './recordings/video' + str(video_counter) + '.avi'
+        print(video_path)
+        self.out = cv2.VideoWriter(video_path, self.fourcc, 20.0, (640,480))
+        while self.isRunning:
+            ret, frame = self.cap.read()
+            if ret:
+                self.out.write(frame)
+        self.out.release()
+
+    def stop(self):
+        self.isRunning = False
+
+    def __del__(self):
+        self.out.release()
 
 
 class VideoCamera(object):
@@ -64,10 +91,15 @@ class VideoCamera(object):
         # If you decide to use video.mp4, you must have this file in the folder
         # as the main.py.
         # self.video = cv2.VideoCapture('video.mp4')
-    
+
+        self.is_record = False
+        self.out = None
+
+        self.recordingThread = None
+
     def __del__(self):
         self.video.release()
-    
+
     def get_frame(self):
         ret, frame = self.video_capture.read()
         #frame = imutils.resize(frame, width=400)
@@ -146,3 +178,13 @@ class VideoCamera(object):
 
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()
+
+    def start_record(self):
+        self.is_record = True
+        self.recordingThread = RecordingThread("Video Recording Thread", self.video_capture)
+        self.recordingThread.start()
+
+    def stop_record(self):
+        self.is_record = False
+        if self.recordingThread != None:
+            self.recordingThread.stop()

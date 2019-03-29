@@ -7,19 +7,33 @@ import cv2
 
 # constants
 CONFIDENCE_MIN = 0.5
-X_DIST_THRESHOLD = 50
+DIST_THRESHOLD = 50
 PROTOTXT_FILE_PATH = 'deploy.prototxt.txt'
 MODEL_FILE_PATH = 'res10_300x300_ssd_iter_140000.caffemodel'
 
 # variables
 verbose_image = True
 verbose_terminal = True
+tracking = False
 ideal_height = 150
+
 
 # print statement that only prints in verbose mode
 def terminal_print(text):
 	if(verbose_terminal):
 		print(text)
+
+def print_commands():
+	terminal_print('Commands: ')
+	terminal_print('h\tPrint Commands')
+	terminal_print('q\tQuit Program')
+	terminal_print('v\tToggle Video Indicators')
+	terminal_print('t\tToggle Tracking')
+	terminal_print('y\tCycle Target\t(Cannot be tracking)')
+	terminal_print('w\tMove Forward\t(Cannot be tracking)')
+	terminal_print('s\tMove Backwards\t(Cannot be tracking)')
+	terminal_print('a\tTurn Left\t(Cannot be tracking)')
+	terminal_print('d\tToggle Right\t(Cannot be tracking)')
 
 def move_forward():
 	terminal_print('Move forward')
@@ -46,11 +60,14 @@ terminal_print("[INFO] starting video stream...")
 vs = cv2.VideoCapture(0)
 time.sleep(2.0)
 
+print_commands()
+
 # get center of the frame
 frame_center_x = int(vs.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
 frame_center_y = int(vs.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
 
 num_faces = 0
+tracking_index = 0
 face_index = -1
 old_size = -1
 old_x = -1
@@ -65,6 +82,9 @@ while True:
 
 	if(verbose_image):
 		cv2.circle(frame, (frame_center_x,frame_center_y), 3, (255, 0, 0), 2)
+		tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
+		tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
+		cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
  
 	# grab the frame dimensions and convert it to a blob
 	(h, w) = frame.shape[:2]
@@ -76,6 +96,7 @@ while True:
 	net.setInput(blob)
 	detections = net.forward()
 
+	faces_lst = []
 
     # loop over the detections
 	for i in range(0, detections.shape[2]):
@@ -85,22 +106,37 @@ while True:
  
 		# filter out weak detections by ensuring the `confidence` is
 		# greater than the minimum confidence
-		if confidence < CONFIDENCE_MIN:
-			continue
- 
+		if confidence > CONFIDENCE_MIN:
+			faces_lst.append(i)
+
+	if(num_faces != len(faces_lst)):
+		tracking_index = 0
+		num_faces = len(faces_lst)
+		for i in range(0, num_faces):
+			box = detections[0, 0, faces_lst[i], 3:7] * np.array([w, h, w, h])
+			(startX, startY, endX, endY) = box.astype("int")
+			x = (startX+endX)/2
+			y = (startY+endY)/2
+			if(abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
+				face_index = i
+				break
+
+	for i in range(0, num_faces):
+		confidence = detections[0, 0, faces_lst[i], 2]
+
 		# compute the (x, y)-coordinates of the bounding box for the
 		# object
-		box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+		box = detections[0, 0, faces_lst[i], 3:7] * np.array([w, h, w, h])
 		(startX, startY, endX, endY) = box.astype("int")
  
 		x = (startX+endX)/2
 		y = (startY+endY)/2
 		
-		if(old_x < 1):
+		if(tracking and face_index == i and old_x < 0):
 			old_x = x
 			old_y = y
 
-		if(abs(x - old_x) < X_DIST_THRESHOLD):
+		if(tracking and abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
 			old_x = x
 			old_y = y
 
@@ -130,17 +166,61 @@ while True:
 				if(size_difference > 0):
 					move_backward()
 
+		elif (not tracking and tracking_index == i):
+			# Draw a rectangle around the potential face to track
+			if(verbose_image):
+				cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 0), 2)
+
 		else:
 			# Draw a rectangle around the faces
-			cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+			if(verbose_image):
+				cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+
 
 	# show the output frame
 	cv2.imshow("Frame", frame)
 	key = cv2.waitKey(1) & 0xFF
- 
-	# if the `q` key was pressed, break from the loop
+  
+	# break from the loop
+	if key == ord("h"):
+		print_commands()
+
+	# break from the loop
 	if key == ord("q"):
 		break
+
+	# toggle verbose image
+	if key == ord("v"):
+		verbose_image = not verbose_image
+
+	# toggle tracking mode
+	if key == ord("t") and num_faces > 0:
+		tracking = not tracking
+		if tracking:
+			face_index = tracking_index
+		else:
+			old_x = -1
+			oly_y = -1
+
+	# check next potential target
+	if key == ord("y") and not tracking:
+		tracking_index = tracking_index + 1 if tracking_index < num_faces - 1 else 0
+
+	# move forward manually
+	if key == ord("w") and not tracking:
+		move_forward()
+ 
+	# move backward manually
+	if key == ord("s") and not tracking:
+		move_backward()
+
+	# turn left manually
+	if key == ord("a") and not tracking:
+		turn_left()
+
+	# turn right manually
+	if key == ord("d") and not tracking:
+		turn_right()
  
 # do a bit of cleanup
 cv2.destroyAllWindows()
