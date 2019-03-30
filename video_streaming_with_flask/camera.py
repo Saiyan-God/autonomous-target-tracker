@@ -3,6 +3,10 @@ from imutils.video import VideoStream
 import numpy as np
 import imutils, requests, json, threading
 
+from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import SVC
+import pickle
+
 # constants
 CONFIDENCE_MIN = 0.5
 DIST_THRESHOLD = 50
@@ -79,10 +83,28 @@ class VideoCamera(object):
         self.num_faces = 0
         self.face_index = -1
         self.old_x = -1
-        self.old_y = -1
+        self.old_y = -1 
         self.tracking_index = 0
 
         self.old_size = -1
+
+        self.tracking_face_data = []
+        self.tracking_face_labels = []
+        self.counter = 0
+        self.training_data = pickle.loads(open("embeddings.pickle", "rb").read())
+        self.p_label = "positive"
+
+        self.embeddings_lst = self.training_data['embeddings']
+        self.labels_lst = self.training_data['names']
+        self.le = LabelEncoder()
+
+        self.face_embedder = cv2.dnn.readNetFromTorch('openface_nn4.small2.v1.t7')
+
+        self.recognizer = SVC(C=1.0, kernel="linear", probability=True)
+
+        self.target_lost = False
+
+
         # If you decide to use video.mp4, you must have this file in the folder
         # as the main.py.
         # self.video = cv2.VideoCapture('video.mp4')
@@ -123,13 +145,7 @@ class VideoCamera(object):
     def get_frame(self):
         ret, frame = self.video_capture.read()
         frame = cv2.resize(frame, (680, 480))
-       # frame = imutils.resize(frame, width=640, height=480)
-
-        if(verbose_image):
-            cv2.circle(frame, (self.frame_center_x,self.frame_center_y), 3, (255, 0, 0), 2)
-            tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
-            tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
-            cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
+        # frame = imutils.resize(frame, width=640, height=480)
 
         # grab the frame dimensions and convert it to a blob
         (h, w) = frame.shape[:2]
@@ -142,6 +158,8 @@ class VideoCamera(object):
         detections = self.net.forward()
 
         faces_lst = []
+
+        target_undetected = True
 
         # loop over the detections
         for i in range(0, detections.shape[2]):
@@ -177,13 +195,47 @@ class VideoCamera(object):
             x = (startX+endX)/2
             y = (startY+endY)/2
 
+            face_frame = frame[startY:endY, startX:endX]
+
             if(tracking and self.face_index == i and self.old_x < 0):
                 self.old_x = x
                 self.old_y = y
 
-            if(tracking and abs(x - self.old_x) < DIST_THRESHOLD and abs(y - self.old_y) < DIST_THRESHOLD):
+            if self.target_lost and len(self.tracking_face_data) > 5:
+                faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (96, 96),
+                    (0, 0, 0), swapRB=True, crop=False)
+                self.face_embedder.setInput(faceBlob)
+                vec = self.face_embedder.forward()
+
+                preds = self.recognizer.predict_proba(vec)[0]
+                j = np.argmax(preds)
+                proba = preds[j]
+                name = self.le.classes_[j]
+
+                if name == self.p_label:
+                    old_x = x
+                    old_y = y
+                    self.target_lost = False
+                    terminal_print('Target Found')
+
+            if(tracking and not self.target_lost and abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
+                target_undetected = False
                 self.old_x = x
                 self.old_y = y
+
+
+                if(counter > 2**len(self.tracking_face_data)):
+                    faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
+                        (96, 96), (0, 0, 0), swapRB=True, crop=False)
+                    self.face_embedder.setInput(faceBlob)
+                    self.tracking_face_data.append(self.face_embedder.forward().flatten())
+                    self.tracking_face_labels.append(self.p_label)
+                    if len(self.tracking_face_data) > 5:
+                        final_labels = self.le.fit_transform(self.labels_lst + self.tracking_face_labels)
+                        self.recognizer.fit(self.embeddings_lst + self.tracking_face_data, final_labels)
+                    # create an image file. Not required to do so as the training data for 
+                    # a particular target does not need to persist 
+                    #cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
 
                 # draw the bounding box of the face along with the associated
                 # probability
@@ -210,6 +262,9 @@ class VideoCamera(object):
                         self.move_forward()
                     if(size_difference > 0):
                         self.move_backward()
+
+                counter +=1
+
             elif (not tracking and self.tracking_index == i):
                 # Draw a rectangle around the potential face to track
                 if(verbose_image):
@@ -220,6 +275,15 @@ class VideoCamera(object):
                 if(verbose_image):
                     cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
+        if(verbose_image):
+            cv2.circle(frame, (self.frame_center_x,self.frame_center_y), 3, (255, 0, 0), 2)
+            tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
+            tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
+            cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
+
+        if tracking and not self.target_lost and target_undetected:
+            self.target_lost = True
+            terminal_print('Lost Target')
 
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()

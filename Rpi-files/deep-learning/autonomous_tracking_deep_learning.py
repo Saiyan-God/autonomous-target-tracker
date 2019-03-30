@@ -5,6 +5,10 @@ import imutils
 import time
 import cv2
 
+from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import SVC
+import pickle
+
 # constants
 CONFIDENCE_MIN = 0.5
 DIST_THRESHOLD = 50
@@ -16,7 +20,6 @@ verbose_image = True
 verbose_terminal = True
 tracking = False
 ideal_height = 150
-
 
 # print statement that only prints in verbose mode
 def terminal_print(text):
@@ -73,18 +76,28 @@ old_size = -1
 old_x = -1
 old_y = -1
 
+tracking_face_data = []
+tracking_face_labels = []
+counter = 0
+training_data = pickle.loads(open("embeddings.pickle", "rb").read())
+p_label = "positive"
+
+embeddings_lst = training_data['embeddings']
+labels_lst = training_data['names']
+le = LabelEncoder()
+
+face_embedder = cv2.dnn.readNetFromTorch('openface_nn4.small2.v1.t7')
+
+recognizer = SVC(C=1.0, kernel="linear", probability=True)
+
+target_lost = False
+
 # loop over the frames from the video stream
 while True:
 	# grab the frame from the threaded video stream and resize it
 	# to have a maximum width of 400 pixels
 	ret, frame = vs.read()
 	#frame = imutils.resize(frame, width=400)
-
-	if(verbose_image):
-		cv2.circle(frame, (frame_center_x,frame_center_y), 3, (255, 0, 0), 2)
-		tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
-		tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
-		cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
  
 	# grab the frame dimensions and convert it to a blob
 	(h, w) = frame.shape[:2]
@@ -97,6 +110,8 @@ while True:
 	detections = net.forward()
 
 	faces_lst = []
+
+	target_undetected = True
 
     # loop over the detections
 	for i in range(0, detections.shape[2]):
@@ -131,14 +146,48 @@ while True:
  
 		x = (startX+endX)/2
 		y = (startY+endY)/2
-		
+
+		face_frame = frame[startY:endY, startX:endX]
+
 		if(tracking and face_index == i and old_x < 0):
 			old_x = x
 			old_y = y
 
-		if(tracking and abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
+		if target_lost and len(tracking_face_data) > 5:
+			faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (96, 96),
+				(0, 0, 0), swapRB=True, crop=False)
+			face_embedder.setInput(faceBlob)
+			vec = face_embedder.forward()
+
+			preds = recognizer.predict_proba(vec)[0]
+			j = np.argmax(preds)
+			proba = preds[j]
+			name = le.classes_[j]
+
+			if name == p_label:
+				old_x = x
+				old_y = y
+				target_lost = False
+				terminal_print('Target Found')
+
+		if(tracking and not target_lost and abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
+			target_undetected = False
+
 			old_x = x
 			old_y = y
+
+			if(counter > 2**len(tracking_face_data)):
+				faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
+					(96, 96), (0, 0, 0), swapRB=True, crop=False)
+				face_embedder.setInput(faceBlob)
+				tracking_face_data.append(face_embedder.forward().flatten())
+				tracking_face_labels.append(p_label)
+				if len(tracking_face_data) > 5:
+					final_labels = le.fit_transform(labels_lst + tracking_face_labels)
+					recognizer.fit(embeddings_lst + tracking_face_data, final_labels)
+				# create an image file. Not required to do so as the training data for 
+				# a particular target does not need to persist 
+				#cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
 
 			# draw the bounding box of the face along with the associated
 			# probability
@@ -166,6 +215,8 @@ while True:
 				if(size_difference > 0):
 					move_backward()
 
+			counter +=1
+
 		elif (not tracking and tracking_index == i):
 			# Draw a rectangle around the potential face to track
 			if(verbose_image):
@@ -176,6 +227,16 @@ while True:
 			if(verbose_image):
 				cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
+
+	if(verbose_image):
+		cv2.circle(frame, (frame_center_x,frame_center_y), 3, (255, 0, 0), 2)
+		tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
+		tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
+		cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
+
+	if tracking and not target_lost and target_undetected:
+		target_lost = True
+		terminal_print('Lost Target')
 
 	# show the output frame
 	cv2.imshow("Frame", frame)
@@ -201,6 +262,11 @@ while True:
 		else:
 			old_x = -1
 			oly_y = -1
+
+			target_lost = False
+			tracking_face_data = []
+			tracking_face_labels = []
+			counter = 0
 
 	# check next potential target
 	if key == ord("y") and not tracking:
