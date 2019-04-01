@@ -91,6 +91,26 @@ def recordings():
     num_videos = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
     return jsonify({"num_videos": num_videos})
 
+@app.route('/toggle_tracking')
+def toggle_tracking():
+    global video_camera
+
+    if video_camera == None:
+        video_camera = instansiate_camera() 
+
+    video_camera.toogle_tracking()
+
+    return jsonify({"success": True, "current_target_index": video_camera.tracking_index})
+
+@app.route('/track_next_target')
+def track_next_target():
+    global video_camera
+
+    if video_camera == None:
+        video_camera = instansiate_camera()   
+
+    video_camera.track_next_target()
+    return jsonify({"success": True, "current_target_index": video_camera.tracking_index})
 
 @app.route('/recording', methods=['GET'])
 @cross_origin()

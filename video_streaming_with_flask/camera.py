@@ -14,10 +14,10 @@ PROTOTXT_FILE_PATH =  os.path.abspath('deploy.prototxt.txt')
 MODEL_FILE_PATH = os.path.abspath('res10_300x300_ssd_iter_140000.caffemodel')
 
 # variables
-verbose_image = True
 verbose_terminal = True
-tracking = False
-ideal_height = 150
+
+
+
 
 def print_commands():
 	terminal_print('Commands: ')
@@ -88,6 +88,9 @@ class VideoCamera(object):
 
         self.old_size = -1
 
+        self.tracking = False
+        self.verbose_image = True
+
         self.tracking_face_data = []
         self.tracking_face_labels = []
         self.counter = 0
@@ -111,7 +114,7 @@ class VideoCamera(object):
 
         self.is_record = False
         self.out = None
-
+        self.ideal_height = 150
         self.recordingThread = None
 
     def __del__(self):
@@ -120,8 +123,23 @@ class VideoCamera(object):
     def move_forward(self):
         terminal_print('Move forward')
         r = requests.post(self.pi_url, data=json.dumps({'direction': 'w'}))
-	    # TO-DO: seriarecordingThreadrecordingThreadrecordingThreadrecordingThreadrecordingThreadrecordingThreadl code to move robot forward
+    
+    def toogle_tracking(self):
+        self.tracking = not self.tracking
+        if self.tracking:
+			self.face_index = self.tracking_index
+        else:
+			self.old_x = -1
+			self.oly_y = -1
 
+			self.target_lost = False
+			self.tracking_face_data = []
+			self.tracking_face_labels = []
+			self.counter = 0
+	    
+    def track_next_target(self):
+        self.tracking_index = self.tracking_index + 1 if self.tracking_index < self.num_faces - 1 else 0
+    
     def move_backward(self):
         terminal_print('Move backward')
         r = requests.post(self.pi_url, data=json.dumps({'direction': 's'}))
@@ -197,7 +215,7 @@ class VideoCamera(object):
 
             face_frame = frame[startY:endY, startX:endX]
 
-            if(tracking and self.face_index == i and self.old_x < 0):
+            if(self.tracking and self.face_index == i and self.old_x < 0):
                 self.old_x = x
                 self.old_y = y
 
@@ -213,18 +231,18 @@ class VideoCamera(object):
                 name = self.le.classes_[j]
 
                 if name == self.p_label:
-                    old_x = x
-                    old_y = y
+                    self.old_x = x
+                    self.old_y = y
                     self.target_lost = False
                     terminal_print('Target Found')
 
-            if(tracking and not self.target_lost and abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
+            if(self.tracking and not self.target_lost and abs(x - self.old_x) < DIST_THRESHOLD and abs(y - self.old_y) < DIST_THRESHOLD):
                 target_undetected = False
                 self.old_x = x
                 self.old_y = y
 
 
-                if(counter > 2**len(self.tracking_face_data)):
+                if(self.counter > 2**len(self.tracking_face_data)):
                     faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
                         (96, 96), (0, 0, 0), swapRB=True, crop=False)
                     self.face_embedder.setInput(faceBlob)
@@ -239,7 +257,7 @@ class VideoCamera(object):
 
                 # draw the bounding box of the face along with the associated
                 # probability
-                if(verbose_image):
+                if(self.verbose_image):
                     textY = startY - 10 if startY - 10 > 10 else startY + 10
                     text = "{:.2f}%".format(confidence * 100)
                     cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 0), 2)
@@ -247,7 +265,7 @@ class VideoCamera(object):
                     cv2.putText(frame, text, (startX, textY), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 2)
 
                 x_diff = x - self.frame_center_x
-                size_difference = abs(startY - endY) - ideal_height
+                size_difference = abs(startY - endY) - self.ideal_height
 
                 # If the new x-coordinate and old x-coordinate difference exceeds the threshold, rotate the robot accordingly
                 if(abs(x_diff) > 130):
@@ -263,25 +281,25 @@ class VideoCamera(object):
                     if(size_difference > 0):
                         self.move_backward()
 
-                counter +=1
+                self.counter += 1
 
-            elif (not tracking and self.tracking_index == i):
+            elif (not self.tracking and self.tracking_index == i):
                 # Draw a rectangle around the potential face to track
-                if(verbose_image):
+                if(self.verbose_image):
                     cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 0), 2)
 
             else:
                 # Draw a rectangle around the faces
-                if(verbose_image):
+                if(self.verbose_image):
                     cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
-        if(verbose_image):
+        if(self.verbose_image):
             cv2.circle(frame, (self.frame_center_x,self.frame_center_y), 3, (255, 0, 0), 2)
-            tracking_text = 'Tracking: ' + ('True' if tracking else 'False')
-            tracking_text_color = (0, 255, 0) if tracking else (255, 0, 0)
+            tracking_text = 'Tracking: ' + ('True' if self.tracking else 'False')
+            tracking_text_color = (0, 255, 0) if self.tracking else (255, 0, 0)
             cv2.putText(frame, tracking_text, (10, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.6, tracking_text_color, 2)
 
-        if tracking and not self.target_lost and target_undetected:
+        if self.tracking and not self.target_lost and target_undetected:
             self.target_lost = True
             terminal_print('Lost Target')
 
