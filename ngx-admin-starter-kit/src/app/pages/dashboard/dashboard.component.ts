@@ -52,6 +52,11 @@ export class DashboardComponent {
     this.socket.emit("move", msg);
   }
 
+  camera(msg: string){
+    console.log(msg)
+    this.socket.emit("camera", msg);
+  }
+
   @HostListener('document:keyup', ['$event'])
   handleDeleteKeyboardEvent(event: KeyboardEvent) {
     switch(event.key) {
@@ -82,9 +87,19 @@ export class DashboardComponent {
       case "a":
         this.move("left");
         break
-      case "f":
+      case "x":
         this.move("stop");
         break
+      case "t":
+
+          this.camera("t");
+          break
+      case "y":
+          this.camera("y");
+          break
+      case "v":
+          this.camera("v");
+          break
     }
   }
 

@@ -155,7 +155,7 @@ def recording():
 
 
 @socketio.on('move')
-def test_message(message):
+def message(message):
     global video_camera
 
     if video_camera == None:
@@ -166,6 +166,17 @@ def test_message(message):
     if message == 'left': video_camera.turn_left()
     if message == 'right': video_camera.turn_right()
     if message ==  'stop': video_camera.stop()
+
+@socketio.on('camera')
+def camera(message):
+    global video_camera
+
+    if video_camera == None:
+        video_camera = instansiate_camera()
+    print message
+    if message == 't': video_camera.toogle_tracking()
+    if message == 'y': video_camera.get_next_target()
+    if message == 'v': video_camera.toogle_verbose_video()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, threaded=True)

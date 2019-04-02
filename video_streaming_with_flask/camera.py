@@ -73,13 +73,13 @@ class VideoCamera(object):
         # Using OpenCV to capture from device 0. If you have trouble capturing
         # from a webcam, comment the line below out and use a video file
         # instead.
-        self.video_capture = cv2.VideoCapture(0)
-        #self.video_capture = cv2.VideoCapture('udpsrc port=5200 !  application/x-rtp, encoding-name=JPEG,payload=26 !  rtpjpegdepay !  jpegdec ! videoconvert ! appsink')
+        #self.video_capture = cv2.VideoCapture(0)
+        self.video_capture = cv2.VideoCapture('udpsrc port=5200 !  application/x-rtp, encoding-name=JPEG,payload=26 !  rtpjpegdepay !  jpegdec ! videoconvert ! appsink')
         time.sleep(2.0)
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_FILE_PATH, MODEL_FILE_PATH)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
         self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
-        self.pi_url = "http://192.168.43.253"
+        self.pi_url = "http://172.17.38.242"
         self.num_faces = 0
         self.face_index = -1
         self.old_x = -1
@@ -119,10 +119,6 @@ class VideoCamera(object):
 
     def __del__(self):
         self.video.release()
-
-    def move_forward(self):
-        terminal_print('Move forward')
-        r = requests.post(self.pi_url, data=json.dumps({'direction': 'w'}))
     
     def toogle_tracking(self):
         self.tracking = not self.tracking
@@ -136,10 +132,18 @@ class VideoCamera(object):
 			self.tracking_face_data = []
 			self.tracking_face_labels = []
 			self.counter = 0
-	    
-    def track_next_target(self):
-        self.tracking_index = self.tracking_index + 1 if self.tracking_index < self.num_faces - 1 else 0
+
+    def toogle_verbose_video(self):
+        self.verbose_image = not self.verbose_image
     
+    def track_next_target(self):
+        if not self.tracking:
+            self.tracking_index = self.tracking_index + 1 if self.tracking_index < self.num_faces - 1 else 0
+
+    def move_forward(self):
+        terminal_print('Move forward')
+        r = requests.post(self.pi_url, data=json.dumps({'direction': 'w'}))
+
     def move_backward(self):
         terminal_print('Move backward')
         r = requests.post(self.pi_url, data=json.dumps({'direction': 's'}))
@@ -220,21 +224,24 @@ class VideoCamera(object):
                 self.old_y = y
 
             if self.target_lost and len(self.tracking_face_data) > 5:
-                faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (96, 96),
-                    (0, 0, 0), swapRB=True, crop=False)
-                self.face_embedder.setInput(faceBlob)
-                vec = self.face_embedder.forward()
+                try:
+                    faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (96, 96),
+                        (0, 0, 0), swapRB=True, crop=False)
+                    self.face_embedder.setInput(faceBlob)
+                    vec = self.face_embedder.forward()
 
-                preds = self.recognizer.predict_proba(vec)[0]
-                j = np.argmax(preds)
-                proba = preds[j]
-                name = self.le.classes_[j]
+                    preds = self.recognizer.predict_proba(vec)[0]
+                    j = np.argmax(preds)
+                    proba = preds[j]
+                    name = self.le.classes_[j]
 
-                if name == self.p_label:
-                    self.old_x = x
-                    self.old_y = y
-                    self.target_lost = False
-                    terminal_print('Target Found')
+                    if name == self.p_label:
+                        self.old_x = x
+                        self.old_y = y
+                        self.target_lost = False
+                        terminal_print('Target Found')
+                except:
+                    continue
 
             if(self.tracking and not self.target_lost and abs(x - self.old_x) < DIST_THRESHOLD and abs(y - self.old_y) < DIST_THRESHOLD):
                 target_undetected = False
@@ -242,18 +249,21 @@ class VideoCamera(object):
                 self.old_y = y
 
 
-                if(self.counter > 2**len(self.tracking_face_data)):
-                    faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
-                        (96, 96), (0, 0, 0), swapRB=True, crop=False)
-                    self.face_embedder.setInput(faceBlob)
-                    self.tracking_face_data.append(self.face_embedder.forward().flatten())
-                    self.tracking_face_labels.append(self.p_label)
-                    if len(self.tracking_face_data) > 5:
-                        final_labels = self.le.fit_transform(self.labels_lst + self.tracking_face_labels)
-                        self.recognizer.fit(self.embeddings_lst + self.tracking_face_data, final_labels)
-                    # create an image file. Not required to do so as the training data for 
-                    # a particular target does not need to persist 
-                    #cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
+                if(self.counter > 1.5**len(self.tracking_face_data)):
+                    try:
+                        faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
+                            (96, 96), (0, 0, 0), swapRB=True, crop=False)
+                        self.face_embedder.setInput(faceBlob)
+                        self.tracking_face_data.append(self.face_embedder.forward().flatten())
+                        self.tracking_face_labels.append(self.p_label)
+                        if len(self.tracking_face_data) > 5:
+                            final_labels = self.le.fit_transform(self.labels_lst + self.tracking_face_labels)
+                            self.recognizer.fit(self.embeddings_lst + self.tracking_face_data, final_labels)
+                        # create an image file. Not required to do so as the training data for 
+                        # a particular target does not need to persist 
+                        #cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
+                    except:
+                        continue
 
                 # draw the bounding box of the face along with the associated
                 # probability
