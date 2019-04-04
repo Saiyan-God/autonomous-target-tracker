@@ -107,6 +107,7 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
         self.recognizer = SVC(C=1.0, kernel="linear", probability=True)
 
         self.target_lost = False
+        self.target_lost_counter = 0
 
 
         # If you decide to use video.mp4, you must have this file in the folder
@@ -207,6 +208,23 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
                 if(abs(x - self.old_x) < DIST_THRESHOLD and abs(y - self.old_y) < DIST_THRESHOLD):
                     self.face_index = i
                     break
+
+        if self.target_lost and len(self.tracking_face_data) > 5:
+            if(self.target_lost_counter > 10):
+                self.target_lost_counter = 0
+            
+                lost_x_dist = self.frame_center_x - self.old_x
+                if(abs(self.frame_center_y - self.old_y) > abs(lost_x_dist)):
+                    terminal_print("Move back to find target")
+                    self.move_backward()
+                elif(lost_x_dist > 0):
+                    terminal_print("Move left to find target")
+                    self.turn_left()
+                else:
+                    terminal_print("Move right to find target")
+                    self.turn_right()
+            else:
+                self.target_lost_counter += 1
 
         for i in range(0, self.num_faces):
             confidence = detections[0, 0, faces_lst[i], 2]
