@@ -126,7 +126,8 @@ class VideoCamera(object):
 			self.face_index = self.tracking_index
         else:
 			self.old_x = -1
-			self.oly_y = -1
+			self.old_y = -1
+            self.old_size = -1
 
 			self.target_lost = False
 			self.tracking_face_data = []
@@ -223,6 +224,9 @@ class VideoCamera(object):
                 self.old_x = x
                 self.old_y = y
 
+            if(self.old_size == -1 and self.tracking):
+                self.old_size = abs(startY - endY)
+
             if self.target_lost and len(self.tracking_face_data) > 5:
                 try:
                     faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (96, 96),
@@ -275,7 +279,7 @@ class VideoCamera(object):
                     cv2.putText(frame, text, (startX, textY), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 2)
 
                 x_diff = x - self.frame_center_x
-                size_difference = abs(startY - endY) - self.ideal_height
+                size_difference = abs(startY - endY) - self.old_size
 
                 # If the new x-coordinate and old x-coordinate difference exceeds the threshold, rotate the robot accordingly
                 if(abs(x_diff) > 130):
