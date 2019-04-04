@@ -153,22 +153,29 @@ while True:
 			old_x = x
 			old_y = y
 
+		if(old_size == -1 and tracking):
+			old_size = abs(startY - endY)
+
 		if target_lost and len(tracking_face_data) > 5:
-			faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (96, 96),
-				(0, 0, 0), swapRB=True, crop=False)
-			face_embedder.setInput(faceBlob)
-			vec = face_embedder.forward()
+			try:
+				faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255, (80, 80),
+					(0, 0, 0), swapRB=True, crop=False)
+				face_embedder.setInput(faceBlob)
+				vec = face_embedder.forward()
 
-			preds = recognizer.predict_proba(vec)[0]
-			j = np.argmax(preds)
-			proba = preds[j]
-			name = le.classes_[j]
-
-			if name == p_label:
-				old_x = x
-				old_y = y
-				target_lost = False
-				terminal_print('Target Found')
+				preds = recognizer.predict_proba(vec)[0]
+				j = np.argmax(preds)
+				proba = preds[j]
+				name = le.classes_[j]
+				print("{},{},{}".format(name, p_label, proba))
+				if name == p_label and proba > 0.70:
+					old_x = x
+					old_y = y
+					target_lost = False
+					terminal_print('Target Found')
+			except:
+				print('Exception occured')
+				continue
 
 		if(tracking and not target_lost and abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
 			target_undetected = False
@@ -185,6 +192,7 @@ while True:
 				if len(tracking_face_data) > 5:
 					final_labels = le.fit_transform(labels_lst + tracking_face_labels)
 					recognizer.fit(embeddings_lst + tracking_face_data, final_labels)
+
 				# create an image file. Not required to do so as the training data for 
 				# a particular target does not need to persist 
 				#cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
@@ -199,7 +207,7 @@ while True:
 				cv2.putText(frame, text, (startX, textY), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 2)
 
 			x_diff = x - frame_center_x
-			size_difference = abs(startY - endY) - ideal_height
+			size_difference = abs(startY - endY) - old_size
 
 			# If the new x-coordinate and old x-coordinate difference exceeds the threshold, rotate the robot accordingly
 			if(abs(x_diff) > 130):
@@ -261,7 +269,8 @@ while True:
 			face_index = tracking_index
 		else:
 			old_x = -1
-			oly_y = -1
+			old_y = -1
+			old_size = -1
 
 			target_lost = False
 			tracking_face_data = []
