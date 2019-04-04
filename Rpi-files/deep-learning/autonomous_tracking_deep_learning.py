@@ -91,6 +91,7 @@ face_embedder = cv2.dnn.readNetFromTorch('openface_nn4.small2.v1.t7')
 recognizer = SVC(C=1.0, kernel="linear", probability=True)
 
 target_lost = False
+target_lost_counter = 0
 
 # loop over the frames from the video stream
 while True:
@@ -135,6 +136,24 @@ while True:
 			if(abs(x - old_x) < DIST_THRESHOLD and abs(y - old_y) < DIST_THRESHOLD):
 				face_index = i
 				break
+
+	if target_lost and len(tracking_face_data) > 5:
+		if(target_lost_counter > 10):
+			target_lost_counter = 0
+		
+			lost_x_dist = frame_center_x - old_x
+			if(abs(frame_center_y - old_y) > abs(lost_x_dist)):
+				terminal_print("Move back to find target")
+				move_backward()
+			elif(lost_x_dist > 0):
+				terminal_print("Move left to find target")
+				turn_left()
+			else:
+				terminal_print("Move right to find target")
+				turn_right()
+		else:
+			target_lost_counter += 1
+
 
 	for i in range(0, num_faces):
 		confidence = detections[0, 0, faces_lst[i], 2]
@@ -184,18 +203,21 @@ while True:
 			old_y = y
 
 			if(counter > 2**len(tracking_face_data)):
-				faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
-					(96, 96), (0, 0, 0), swapRB=True, crop=False)
-				face_embedder.setInput(faceBlob)
-				tracking_face_data.append(face_embedder.forward().flatten())
-				tracking_face_labels.append(p_label)
-				if len(tracking_face_data) > 5:
-					final_labels = le.fit_transform(labels_lst + tracking_face_labels)
-					recognizer.fit(embeddings_lst + tracking_face_data, final_labels)
+				try:
+					faceBlob = cv2.dnn.blobFromImage(face_frame, 1.0 / 255,
+						(96, 96), (0, 0, 0), swapRB=True, crop=False)
+					face_embedder.setInput(faceBlob)
+					tracking_face_data.append(face_embedder.forward().flatten())
+					tracking_face_labels.append(p_label)
+					if len(tracking_face_data) > 5:
+						final_labels = le.fit_transform(labels_lst + tracking_face_labels)
+						recognizer.fit(embeddings_lst + tracking_face_data, final_labels)
 
-				# create an image file. Not required to do so as the training data for 
-				# a particular target does not need to persist 
-				#cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
+					# create an image file. Not required to do so as the training data for 
+					# a particular target does not need to persist 
+					#cv2.imwrite("positive_data/frame_{}.jpg".format(len(tracking_face_data)), face_frame)
+				except:
+					continue
 
 			# draw the bounding box of the face along with the associated
 			# probability
