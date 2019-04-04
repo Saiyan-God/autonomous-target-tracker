@@ -161,11 +161,11 @@ def message(message):
     if video_camera == None:
         video_camera = instansiate_camera()
     print "direction: " + message
-    if message == 'forward': video_camera.move_forward()
-    if message == 'backward': video_camera.move_backward()
-    if message == 'left': video_camera.turn_left()
-    if message == 'right': video_camera.turn_right()
-    if message ==  'stop': video_camera.stop()
+    if message == 'forward': video_camera.move('w')
+    if message == 'backward': video_camera.move('s')
+    if message == 'left': video_camera.move('a')
+    if message == 'right': video_camera.move('d')
+    if message ==  'stop': video_camera.move('x')
 
 @socketio.on('camera')
 def camera(message):

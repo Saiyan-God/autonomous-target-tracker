@@ -6,6 +6,7 @@ import imutils, requests, json, threading
 from sklearn.preprocessing import LabelEncoder
 from sklearn.svm import SVC
 import pickle
+from websocket import create_connection
 
 # constants
 CONFIDENCE_MIN = 0.5
@@ -79,7 +80,8 @@ class VideoCamera(object):
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_FILE_PATH, MODEL_FILE_PATH)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
 self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
-        self.pi_url = "http://172.17.42.221"
+        self.pi_url = "ws://172.17.42.221:8080"
+        self.ws = ws = create_connection(self.pi_url)
         #self.pi_url = "http://192.168.0.30"
         self.num_faces = 0
         self.face_index = -1
@@ -120,6 +122,9 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
 
     def __del__(self):
         self.video.release()
+    
+    def move(self, direction):
+        self.ws.send(direction)
     
     def toogle_tracking(self):
         self.tracking = not self.tracking
