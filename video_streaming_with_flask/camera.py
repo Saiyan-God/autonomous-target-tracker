@@ -78,8 +78,9 @@ class VideoCamera(object):
         time.sleep(2.0)
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_FILE_PATH, MODEL_FILE_PATH)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
-        self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
-        self.pi_url = "http://172.17.38.242"
+self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
+        self.pi_url = "http://172.17.42.221"
+        #self.pi_url = "http://192.168.0.30"
         self.num_faces = 0
         self.face_index = -1
         self.old_x = -1
