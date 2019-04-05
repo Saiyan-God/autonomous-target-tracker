@@ -44,7 +44,7 @@ class RecordingThread(threading.Thread):
         threading.Thread.__init__(self)
         self.name = name
         self.isRunning = True
-
+        
         self.cap = camera
         self.fourcc = cv2.VideoWriter_fourcc('H','2','6','4')  # or self.fourcc = cv2.VideoWriter_fourcc(*'H264')
         self.out = None
@@ -79,18 +79,15 @@ class VideoCamera(object):
         time.sleep(2.0)
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_FILE_PATH, MODEL_FILE_PATH)
         self.frame_center_x = int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)/2)
-self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
+        self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
         self.pi_url = "ws://172.17.42.221:8080"
         self.ws = ws = create_connection(self.pi_url)
-        #self.pi_url = "http://192.168.0.30"
         self.num_faces = 0
         self.face_index = -1
         self.old_x = -1
         self.old_y = -1 
         self.tracking_index = 0
-
         self.old_size = -1
-
         self.tracking = False
         self.verbose_image = True
 
@@ -132,14 +129,13 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
         if self.tracking:
 			self.face_index = self.tracking_index
         else:
-			self.old_x = -1
-			self.old_y = -1
+            self.old_x = -1
+            self.old_y = -1
             self.old_size = -1
-
-			self.target_lost = False
-			self.tracking_face_data = []
-			self.tracking_face_labels = []
-			self.counter = 0
+            self.target_lost = False
+            self.tracking_face_data = []
+            self.tracking_face_labels = []
+            self.counter = 0
 
     def toogle_verbose_video(self):
         self.verbose_image = not self.verbose_image
@@ -150,26 +146,31 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
 
     def move_forward(self):
         terminal_print('Move forward')
-        r = requests.post(self.pi_url, data=json.dumps({'direction': 'w'}))
+        #r = requests.post(self.pi_url, data=json.dumps({'direction': 'w'}))
+        self.move('w')
 
     def move_backward(self):
         terminal_print('Move backward')
-        r = requests.post(self.pi_url, data=json.dumps({'direction': 's'}))
+        #r = requests.post(self.pi_url, data=json.dumps({'direction': 's'}))
+        self.move('s')
         # TO-DO: serial code to move robot backward
 
     def turn_right(self):
         terminal_print('Turn right')
-        r = requests.post(self.pi_url, data=json.dumps({'direction': 'a'}))
+        #r = requests.post(self.pi_url, data=json.dumps({'direction': 'a'}))
+        self.move('a')
         # TO-DO: serial code to turn robot right
 
     def stop(self):
         terminal_print('Stop')
-        r = requests.post(self.pi_url, data=json.dumps({'direction': 'x'}))
+        #r = requests.post(self.pi_url, data=json.dumps({'direction': 'x'}))
+        self.move('x')
         # TO-DO: serial code to turn robot right
 
     def turn_left(self):
         terminal_print('Turn left')
-        r = requests.post(self.pi_url, data=json.dumps({'direction': 'd'}))
+        #r = requests.post(self.pi_url, data=json.dumps({'direction': 'd'}))
+        self.move('d')
         # TO-DO: serial code to turn robot left
 
     def get_frame(self):
@@ -215,7 +216,7 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
                     break
 
         if self.target_lost and len(self.tracking_face_data) > 5:
-            if(self.target_lost_counter > 10):
+            if(self.target_lost_counter > 1):
                 self.target_lost_counter = 0
             
                 lost_x_dist = self.frame_center_x - self.old_x
@@ -223,11 +224,11 @@ self.frame_center_y = int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)/2)
                     terminal_print("Move back to find target")
                     self.move_backward()
                 elif(lost_x_dist > 0):
-                    terminal_print("Move left to find target")
-                    self.turn_left()
-                else:
                     terminal_print("Move right to find target")
                     self.turn_right()
+                else:
+                    terminal_print("Move left to find target")
+                    self.turn_left()
             else:
                 self.target_lost_counter += 1
 
